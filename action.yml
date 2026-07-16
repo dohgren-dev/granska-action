@@ -1,0 +1,79 @@
+# action.yml — Granska CI-mode GitHub Action (CI-04).
+#
+# Docker container Action wrapping the pinned docker/Dockerfile image (03-03):
+# preflight -> headless audit (03-01's confirmed `claude -p` invocation) ->
+# cost -> render -> SARIF -> merge gate, all orchestrated by
+# bin/ci-entrypoint.sh (the container's ENTRYPOINT).
+#
+# NOTE (03-04 marketplace-placement decision): GitHub Marketplace requires
+# action.yml at a repo's ROOT with one action per repo. This monorepo already
+# hosts the granska plugin at root, so this file is authored HERE first (per
+# the plan) and 03-05 mirrors/publishes it into a new, separate
+# `dohgren-dev/granska-action` repo — that repo's action.yml references the
+# SAME pinned ghcr.io/dohgren-dev/granska:<tag> image, so the engine is never
+# duplicated. This copy stays as the in-monorepo reference/dev copy.
+name: 'Granska Audit'
+description: 'The verified audit, in CI: scanner-grounded, adversarially-verified security findings, gated on merge, exported to code-scanning, and summarized in a sticky PR comment.'
+author: 'dohgren-dev'
+
+branding:
+  icon: 'shield'
+  color: 'green'
+
+inputs:
+  anthropic-api-key:
+    description: 'Anthropic API key used to run the headless claude -p audit. Required.'
+    required: true
+  target:
+    description: 'Path to audit, relative to the checked-out workspace.'
+    required: false
+    default: '.'
+  scope:
+    description: 'Audit scope: quick (fast SAST + secrets + security-critical LLM lanes), full (every scanner + every LLM lane), or dast (full + live DAST). Default quick suits PR runs (D-10) — run full on a schedule instead.'
+    required: false
+    default: 'quick'
+  fail-on:
+    description: 'Lowest severity (critical|high|medium|low) among vetted findings that fails the job (D-07).'
+    required: false
+    default: 'high'
+  soft-fail:
+    description: 'Report and gate as normal, but never fail the job (D-09) — use for report-only rollout before enforcing the gate.'
+    required: false
+    default: 'false'
+  max-cost:
+    description: 'Optional USD hard cap on the headless run''s API spend (D-11). A real quick-scope audit costs ~$2/run on claude-sonnet-5 (CI-06) — size this accordingly. Omit for no cap.'
+    required: false
+    default: ''
+  baseline:
+    description: 'Path to the waiver/baseline file, relative to target.'
+    required: false
+    default: '.granska/baseline.yml'
+
+outputs:
+  grade:
+    description: 'The run''s letter grade (A-F, bin/grade.mjs rubric).'
+  exit-code:
+    description: 'The merge gate''s exit code (0 pass, 1 fail — 0 always when soft-fail is true).'
+  sarif-path:
+    description: 'Path (relative to the workspace) to the generated SARIF 2.1.0 file, for github/codeql-action/upload-sarif.'
+  report-html:
+    description: 'Path (relative to the workspace) to the self-contained HTML report, for actions/upload-artifact.'
+  cost-usd:
+    description: 'Total API spend (USD) for this run''s headless audit (CI-06).'
+  worst-severity:
+    description: 'The worst severity among vetted (confirmed|likely, non-waived) findings, or "none".'
+
+runs:
+  using: 'docker'
+  image: 'docker://ghcr.io/dohgren-dev/granska:v2.0.0'
+  # docker/Dockerfile deliberately omits ENTRYPOINT (03-03) so the image stays
+  # reusable outside CI too — this Action supplies the entrypoint itself.
+  entrypoint: '/granska/bin/ci-entrypoint.sh'
+  env:
+    ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+    TARGET: ${{ inputs.target }}
+    SCOPE: ${{ inputs.scope }}
+    FAIL_ON: ${{ inputs.fail-on }}
+    SOFT_FAIL: ${{ inputs.soft-fail }}
+    MAX_COST: ${{ inputs.max-cost }}
+    BASELINE: ${{ inputs.baseline }}
