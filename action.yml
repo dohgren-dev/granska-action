@@ -13,7 +13,7 @@
 # SAME pinned ghcr.io/dohgren-dev/granska:<tag> image, so the engine is never
 # duplicated. This copy stays as the in-monorepo reference/dev copy.
 name: 'Granska Audit'
-description: 'The verified audit, in CI: scanner-grounded, adversarially-verified security findings, gated on merge, exported to code-scanning, and summarized in a sticky PR comment.'
+description: 'The verified audit in CI: scanner-grounded, adversarially-verified findings that gate merges and comment on your PRs.'
 author: 'dohgren-dev'
 
 branding:
